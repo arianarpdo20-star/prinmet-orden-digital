@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1c2029">
+  <title>Diagnóstico y cotización · PRINMET Orden Digital</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+  <main class="estrecho" id="raiz">
+    <div class="card" id="no-existe" hidden>
+      <h1>Orden no encontrada</h1>
+      <p>No existe esa orden en este navegador.</p>
+      <a class="btn" href="index.html">Volver al tablero</a>
+    </div>
+
+    <div id="contenido" hidden>
+      <section class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <span class="rotulo" style="margin:0">Falla reportada</span><span id="h-estado"></span>
+        </div>
+        <p id="h-falla" style="margin:6px 0 0;font-weight:600"></p>
+        <p class="ayuda" style="margin:4px 0 0">Urgencia: <b id="h-urg"></b> · <a id="h-maq" href="#"></a></p>
+      </section>
+
+      <!-- 1. Diagnóstico -->
+      <section class="card">
+        <h2><span class="paso">1</span> Diagnóstico</h2>
+        <span class="rotulo">Hallazgos</span>
+        <ul class="hallazgos" id="hallazgos"></ul>
+        <form class="nuevo-hallazgo" id="form-h">
+          <input type="text" id="txt-h" placeholder="Agregar hallazgo" aria-label="Nuevo hallazgo" autocomplete="off">
+          <button class="btn sm" type="submit">Agregar</button>
+        </form>
+        <p class="ayuda" style="margin-top:10px">Sugeridos (toca para agregar):</p>
+        <div class="chips" id="sugeridos"></div>
+
+        <span class="rotulo" style="margin-top:16px">Fotos del diagnóstico</span>
+        <label class="subir"><input type="file" id="foto" accept="image/*" multiple> + Agregar foto</label>
+        <div class="fotos" id="fotos"></div>
+
+        <span class="rotulo" style="margin-top:16px">Nota de voz</span>
+        <div class="voz" style="margin-top:0">
+          <button type="button" class="btn claro sm" id="btn-voz">🎙️ Grabar nota de voz</button>
+          <span class="estado" id="voz-estado"></span>
+        </div>
+        <p class="ayuda">La nota de voz es una simulación: no se graba audio real.</p>
+
+        <div class="acciones"><a class="btn naranja block" href="#cotizacion">Generar cotización</a></div>
+      </section>
+
+      <!-- 2. Cotización -->
+      <section class="card" id="cotizacion">
+        <h2><span class="paso">2</span> Cotización</h2>
+        <span class="rotulo">Detalle</span>
+
+        <div class="linea">
+          <div class="d" style="flex:1;min-width:0">
+            <span>Material:</span> <input type="text" id="c-matdesc" style="min-height:40px;margin-top:4px;display:block" aria-label="Descripción del material" placeholder="Ej. acero, barra 2 pulgadas">
+          </div>
+          <input type="number" id="c-mat" min="0" step="10" inputmode="decimal" aria-label="Material en soles">
+        </div>
+        <div class="linea">
+          <div class="d">Horas de torno (<input type="number" id="c-horas" min="0" step="0.5" inputmode="decimal" style="width:70px;min-height:38px;padding:4px 8px" aria-label="Horas de torno"> h)
+            <small id="c-tarifa"></small></div>
+          <b id="c-horas-sub"></b>
+        </div>
+        <div class="linea">
+          <div class="d">Mano de obra</div>
+          <input type="number" id="c-mo" min="0" step="10" inputmode="decimal" aria-label="Mano de obra en soles">
+        </div>
+        <div class="linea total"><span>TOTAL</span><b id="c-total"></b></div>
+
+        <div class="caja">
+          <span class="rotulo" style="margin:0">Entrega estimada</span>
+          <b id="est-txt"></b>
+          <input type="date" id="f-est" style="margin-top:8px" aria-label="Fecha estimada de entrega">
+        </div>
+        <div class="caja rosa">
+          <span class="rotulo" style="margin:0">Fecha límite del cliente</span>
+          <b id="lim-txt"></b>
+          <input type="date" id="f-lim" style="margin-top:8px" aria-label="Fecha límite del cliente">
+        </div>
+        <p class="aviso">⚠️ Entregar antes de la fecha estimada puede costar más.</p>
+        <p class="aviso mal" id="aviso-limite" hidden></p>
+        <p class="ayuda" id="bloqueo" hidden></p>
+
+        <div class="acciones" style="flex-direction:column">
+          <button class="btn wa block" id="btn-enviar">Enviar por WhatsApp</button>
+          <button class="btn claro block" id="btn-borrador">Guardar borrador</button>
+        </div>
+      </section>
+
+      <section class="card" id="enviada" hidden>
+        <div class="ok-msg">✅ Cotización enviada. La orden pasó a <b>Cotizada</b>.</div>
+        <p class="ayuda">Si no se abrió WhatsApp, toca el botón verde.</p>
+        <div class="acciones">
+          <a class="btn wa" id="wa" target="_blank" rel="noopener" href="#">Abrir WhatsApp</a>
+          <a class="btn claro" id="ver-cliente" href="#">Vista cliente</a>
+          <a class="btn claro" href="index.html">Volver al tablero</a>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Historial de estados</h2>
+        <ul class="linea-tiempo" id="historial"></ul>
+      </section>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+    const { $, esc } = App;
+    App.topbar('');
+    App.hero('Diagnóstico y cotización', 'Cargando…');
+    const o = App.get(App.qs('orden'));
+    const SUGERIDOS = ['Eje principal desgastado', 'Rodamiento con juego', 'Falta de lubricación', 'Guías rayadas', 'Correa desgastada', 'Falla eléctrica'];
+
+    if (!o) { $('#no-existe').hidden = false; App.hero('Orden no encontrada', ''); }
+    else iniciar();
+
+    function iniciar() {
+      $('#contenido').hidden = false;
+      o.hallazgos = o.hallazgos || [];
+      o.fotos = o.fotos || [];
+      const bloqueada = o.estado === 'En reparación' || o.estado === 'Lista';
+
+      function cabecera() {
+        document.title = o.numero + ' · PRINMET Orden Digital';
+        App.hero('Diagnóstico y cotización', `${o.numero} · ${o.maquina} · ${o.cliente}`);
+        $('#h-estado').innerHTML = App.badgeEstado(o.estado);
+        $('#h-falla').textContent = o.falla;
+        $('#h-urg').textContent = o.urgencia.toUpperCase();
+        $('#h-maq').textContent = 'Ver historial de ' + o.maquina;
+        $('#h-maq').href = 'maquina.html?id=' + encodeURIComponent(o.maquina);
+        $('#historial').innerHTML = (o.historial || []).slice().reverse().map(h =>
+          `<li><b>${esc(h.estado)}</b> · ${App.fechaHora(h.fecha)}${h.nota ? ' · <small>' + esc(h.nota) + '</small>' : ''}</li>`).join('');
+      }
+
+      /* Hallazgos */
+      function pintarHallazgos() {
+        $('#hallazgos').innerHTML = o.hallazgos.map((h, i) => `
+          <li class="${h.ok ? 'hecho' : ''}">
+            <input type="checkbox" data-i="${i}" ${h.ok ? 'checked' : ''} aria-label="Confirmado: ${esc(h.texto)}">
+            <span class="t">${esc(h.texto)}</span>
+            <button class="x" data-del="${i}" aria-label="Quitar hallazgo">×</button>
+          </li>`).join('') || '<li><span class="t ayuda">Aún no hay hallazgos.</span></li>';
+      }
+      $('#hallazgos').addEventListener('click', e => {
+        const c = e.target.closest('input[data-i]'), d = e.target.closest('[data-del]');
+        if (c) o.hallazgos[+c.dataset.i].ok = c.checked;
+        else if (d) o.hallazgos.splice(+d.dataset.del, 1);
+        else return;
+        App.guardarOrden(o); pintarHallazgos();
+      });
+      function agregar(t) {
+        t = t.trim(); if (!t) return;
+        o.hallazgos.push({ texto: t, ok: true });
+        App.guardarOrden(o); pintarHallazgos();
+      }
+      $('#form-h').addEventListener('submit', e => { e.preventDefault(); agregar($('#txt-h').value); $('#txt-h').value = ''; });
+      $('#sugeridos').innerHTML = SUGERIDOS.map(s => `<button type="button" class="chip">${esc(s)}</button>`).join('');
+      $('#sugeridos').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) agregar(b.textContent); });
+
+      /* Fotos */
+      function pintarFotos() {
+        $('#fotos').innerHTML = o.fotos.map((f, i) =>
+          `<div class="foto"><img src="${f}" alt="Foto ${i + 1}"><button type="button" data-i="${i}" aria-label="Quitar foto">×</button></div>`).join('');
+      }
+      $('#fotos').addEventListener('click', e => {
+        const b = e.target.closest('button[data-i]');
+        if (b) { o.fotos.splice(+b.dataset.i, 1); App.guardarOrden(o); pintarFotos(); }
+      });
+      $('#foto').addEventListener('change', async e => {
+        for (const f of e.target.files) {
+          try { o.fotos.push(await App.comprimir(f)); } catch (err) { App.toast('No se pudo leer una foto.'); }
+        }
+        e.target.value = '';
+        App.guardarOrden(o); pintarFotos();
+      });
+
+      /* Nota de voz (simulada) */
+      let grabando = false, seg = 0, timer;
+      const fmt = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+      function pintarVoz() {
+        if (grabando) { $('#voz-estado').innerHTML = `<span class="rec">● Grabando ${fmt(seg)}</span>`; return; }
+        $('#voz-estado').innerHTML = o.notaVoz
+          ? `<span class="nota-voz"><button class="btn sm claro" type="button" id="play">▶</button> ${fmt(o.notaVoz.seg)}</span>` : '';
+      }
+      $('#voz-estado').addEventListener('click', e => { if (e.target.id === 'play') App.toast('Reproducción simulada.'); });
+      $('#btn-voz').addEventListener('click', () => {
+        if (!grabando) {
+          grabando = true; seg = 0;
+          $('#btn-voz').textContent = '⏹ Detener';
+          timer = setInterval(() => { seg++; pintarVoz(); }, 1000);
+        } else {
+          grabando = false; clearInterval(timer);
+          o.notaVoz = { seg: Math.max(seg, 1), fecha: new Date().toISOString(), simulada: true };
+          App.guardarOrden(o);
+          $('#btn-voz').textContent = '🎙️ Grabar otra nota';
+        }
+        pintarVoz();
+      });
+
+      /* Cotización (precios ya cargados; el total se suma solo) */
+      const c = o.cotizacion || { materialDesc: 'acero, barra 2 pulgadas', material: 180, horas: 3, tarifa: App.TARIFA_TORNO, manoObra: 120 };
+      $('#c-matdesc').value = c.materialDesc || '';
+      $('#c-mat').value = c.material; $('#c-horas').value = c.horas; $('#c-mo').value = c.manoObra;
+      $('#c-tarifa').textContent = `${App.money(c.tarifa)} por hora`;
+      $('#f-est').value = o.entrega || App.enDias(1);
+      $('#f-lim').value = o.limiteCliente || '';
+      const leer = () => ({ materialDesc: $('#c-matdesc').value.trim(), material: +$('#c-mat').value || 0, horas: +$('#c-horas').value || 0, tarifa: c.tarifa, manoObra: +$('#c-mo').value || 0 });
+      function recalcular() {
+        const v = leer();
+        $('#c-horas-sub').textContent = App.money(v.horas * v.tarifa);
+        $('#c-total').textContent = App.money(App.totalCot(v));
+        const est = $('#f-est').value, lim = $('#f-lim').value, av = $('#aviso-limite');
+        $('#est-txt').textContent = est ? App.fechaDia(est) : 'Sin definir';
+        $('#lim-txt').textContent = lim ? `${App.fechaDia(lim)} · el taller confirma si es posible` : 'El cliente no indicó fecha límite';
+        if (est && lim && est > lim) {
+          av.hidden = false;
+          av.textContent = `La fecha estimada (${App.fechaDia(est)}) es posterior a la fecha límite del cliente (${App.fechaDia(lim)}). Adelantar la entrega puede costar más.`;
+        } else av.hidden = true;
+      }
+      ['#c-matdesc', '#c-mat', '#c-horas', '#c-mo', '#f-est', '#f-lim'].forEach(s => $(s).addEventListener('input', recalcular));
+      recalcular();
+
+      if (bloqueada) {
+        ['#c-matdesc', '#c-mat', '#c-horas', '#c-mo', '#f-est', '#f-lim', '#btn-enviar', '#btn-borrador'].forEach(s => $(s).disabled = true);
+        $('#bloqueo').hidden = false;
+        $('#bloqueo').textContent = `La orden ya está en "${o.estado}": la cotización no se puede modificar.`;
+      }
+
+      function aplicar() {
+        const cot = leer(); cot.total = App.totalCot(cot);
+        if (cot.total <= 0) { App.toast('El total debe ser mayor que 0.'); return null; }
+        if (!$('#f-est').value) { App.toast('Indica la fecha estimada de entrega.'); return null; }
+        o.cotizacion = cot;
+        o.entrega = $('#f-est').value;
+        o.limiteCliente = $('#f-lim').value;
+        return cot;
+      }
+
+      $('#btn-borrador').addEventListener('click', () => { if (aplicar() && App.guardarOrden(o)) App.toast('Borrador guardado.'); });
+
+      $('#btn-enviar').addEventListener('click', () => {
+        if (!aplicar()) return;
+        if (o.estado === 'Recibida') {
+          o.cotizadaEn = new Date().toISOString();
+          App.setEstado(o, 'Cotizada');
+        } else {
+          o.cotizadaEn = o.cotizadaEn || new Date().toISOString();
+          App.setEstado(o, 'Cotizada', 'Cotización actualizada');
+        }
+        cabecera();
+        const url = App.waLink(o);
+        $('#enviada').hidden = false;
+        $('#wa').href = url;
+        $('#ver-cliente').href = App.urlCliente(o);
+        window.open(url, '_blank', 'noopener');
+        $('#enviada').scrollIntoView({ behavior: 'smooth' });
+      });
+
+      cabecera(); pintarHallazgos(); pintarFotos(); pintarVoz();
+    }
+  </script>
+</body>
+</html>

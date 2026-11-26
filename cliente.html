@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1c2029">
+  <title>Estado de mi orden · PRINMET</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <header class="topbar" id="topbar">
+    <span class="marca" style="display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.06em;color:#fff">
+      <span class="logo">P</span><span>PRINMET</span>
+    </span>
+    <span style="font-size:.85rem;color:#b9bfcc">Taller · en línea</span>
+  </header>
+  <main class="estrecho" id="raiz"></main>
+
+  <script src="app.js"></script>
+  <script>
+    const { $, esc } = App;
+    const num = App.qs('orden');
+    const raiz = $('#raiz');
+
+    // La orden puede estar guardada en este navegador (taller) o venir dentro del link (cliente).
+    function cargar() {
+      const local = App.ordenesSinSeed().find(x => x.numero === num);
+      const snap = App.qs('d') ? App.dec(App.qs('d')) : null;
+      const valido = snap && snap.numero === num ? snap : null;
+      if (local && valido) return (local.actualizada || 0) >= (valido.actualizada || 0) ? local : { ...valido, fotos: [] };
+      return local || (valido && { ...valido, fotos: [] }) || null;
+    }
+    let o = cargar();
+    const maqTxt = m => String(m).toLowerCase().replace(/-/g, ' ').replace('cnc', 'CNC');
+
+    function barra(o) {
+      const i = App.ESTADOS.indexOf(o.estado);
+      return `<div class="avance" role="img" aria-label="Avance: ${esc(o.estado)}">` + App.ESTADOS.map((e, k) =>
+        `<div class="p ${k < i ? 'hecho' : k === i ? 'actual' : ''}"><div class="b">${k < i ? '✓' : k + 1}</div>${e}</div>`).join('') + '</div>';
+    }
+
+    function pintar() {
+      if (!o) {
+        App.hero('Orden no encontrada', '');
+        raiz.innerHTML = `<div class="card"><h1>Orden no encontrada</h1><p>Revisa que el link esté completo o pide uno nuevo al taller.</p></div>`;
+        return;
+      }
+      App.hero('Estado de mi orden', `${o.numero} · ${o.maquina}`);
+      const cot = o.cotizacion;
+      const total = cot ? (cot.total ?? App.totalCot(cot)) : 0;
+      const hall = (o.hallazgos || []).filter(h => h.ok);
+      let botones = '';
+      if (o.estado === 'Cotizada') botones += `<button class="btn ok block" id="aprobar">Aprobar cotización</button>`;
+      botones += `<a class="btn claro block" id="consulta" target="_blank" rel="noopener" href="${App.waGenerico(`Hola, tengo una consulta sobre mi orden ${o.numero} (${maqTxt(o.maquina)}).`)}">Tengo una consulta</a>`;
+      const mensaje = o.estado === 'Lista'
+        ? `<div class="ok-msg" style="margin-top:12px">Su orden ${esc(o.numero)} (${esc(maqTxt(o.maquina))}) está <b>LISTA</b>. Puede recogerla en el taller de Villa El Salvador o coordinamos la entrega.</div>` : '';
+
+      raiz.innerHTML = `
+        <section class="card">
+          <span class="rotulo">Tu orden</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <h1>${esc(o.numero)} · ${esc(o.maquina)}</h1>${App.badgeEstado(o.estado)}
+          </div>
+          <p style="margin:6px 0 0"><b>${esc(o.cliente)}</b></p>
+          ${barra(o)}
+          ${mensaje}
+        </section>
+
+        <section class="card">
+          <div class="kv">
+            <div style="grid-column:1/-1"><b>Falla reportada</b>${esc(o.falla)}</div>
+            <div><b>Urgencia</b>${esc(o.urgencia.toUpperCase())}</div>
+            <div><b>Recibida</b>${App.fecha(o.creada)}</div>
+          </div>
+          <div class="caja"><span class="rotulo" style="margin:0">Entrega estimada</span><b>${o.entrega ? App.fechaDia(o.entrega) : 'Por definir'}</b></div>
+          ${o.limiteCliente ? `<div class="caja rosa"><span class="rotulo" style="margin:0">Fecha límite del cliente</span><b>${App.fechaDia(o.limiteCliente)} · el taller confirma si es posible</b></div>` : ''}
+          ${hall.length ? `<span class="rotulo" style="margin-top:16px">Hallazgos</span><ul style="margin:0;padding-left:20px">${hall.map(h => `<li>${esc(h.texto)}</li>`).join('')}</ul>` : ''}
+        </section>
+
+        ${cot ? `<section class="card">
+          <span class="rotulo">Detalle de la cotización</span>
+          <div class="linea"><span>Material${cot.materialDesc ? ': ' + esc(cot.materialDesc) : ''}</span><b>${App.money(cot.material)}</b></div>
+          <div class="linea"><span>Horas de torno (${cot.horas} h)</span><b>${App.money(cot.horas * cot.tarifa)}</b></div>
+          <div class="linea"><span>Mano de obra</span><b>${App.money(cot.manoObra)}</b></div>
+          <div class="linea total"><span>TOTAL</span><b>${App.money(total)}</b></div>
+          <p class="aviso">⚠️ Entregar antes de la fecha estimada puede costar más.</p>
+        </section>` : `<section class="card"><p style="margin:0">Estamos revisando tu máquina. Te avisaremos cuando la cotización esté lista.</p></section>`}
+
+        <section class="card" id="zona-botones">
+          <div class="acciones" style="flex-direction:column;margin:0">${botones}</div>
+          <div id="resultado"></div>
+        </section>
+
+        <section class="card">
+          <span class="rotulo">Historial</span>
+          <ul class="linea-tiempo">${(o.historial || []).slice().reverse().map(h =>
+            `<li><b>${esc(h.estado)}</b> · ${App.fechaHora(h.fecha)}</li>`).join('')}</ul>
+        </section>`;
+
+      const ap = $('#aprobar');
+      if (ap) ap.addEventListener('click', aprobar);
+    }
+
+    function aprobar() {
+      if (!confirm(`¿Aprobar la cotización por ${App.money(o.cotizacion.total ?? App.totalCot(o.cotizacion))}?`)) return;
+      App.setEstado(o, 'En reparación', 'Cotización aprobada por el cliente');
+      pintar();
+      const aviso = `Aprobada. Adelante con la reparación de la ${o.numero} (${maqTxt(o.maquina)}).`;
+      $('#resultado').innerHTML = `
+        <div class="ok-msg" style="margin-top:12px">Gracias. Su orden ${esc(o.numero)} (${esc(maqTxt(o.maquina))}) está ahora <b>EN REPARACIÓN</b>.${o.entrega ? ' Entrega estimada: ' + esc(App.fechaDia(o.entrega).toLowerCase()) + '.' : ''}</div>
+        <div class="acciones"><a class="btn wa block" target="_blank" rel="noopener" href="${App.waGenerico(aviso)}">Avisar al taller por WhatsApp</a></div>`;
+      scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    pintar();
+  </script>
+</body>
+</html>

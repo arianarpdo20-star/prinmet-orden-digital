@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1c2029">
+  <title>Nueva orden · PRINMET Orden Digital</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+  <main class="estrecho">
+    <form id="form" class="card" novalidate>
+      <label for="cliente">Cliente</label>
+      <input type="text" id="cliente" required autocomplete="off" placeholder="Nombre o razón social">
+
+      <label for="maquina">Máquina (QR)</label>
+      <input type="text" id="maquina" required list="maquinas" autocomplete="off" placeholder="Ej. TORNO-CNC-2">
+      <datalist id="maquinas"></datalist>
+      <div class="acciones" style="margin-top:8px"><button type="button" class="btn claro sm" id="qr-sim">Escanear QR de la máquina</button></div>
+      <p class="ayuda" id="qr-msg">Escanea el QR de la máquina para ver su historial de órdenes.</p>
+
+      <label for="falla">Falla reportada</label>
+      <textarea id="falla" required placeholder="¿Qué le pasa a la máquina?"></textarea>
+
+      <label>Urgencia</label>
+      <div class="chips" id="urgencia">
+        <label><input type="radio" name="urg" value="Baja"><span>Baja</span></label>
+        <label><input type="radio" name="urg" value="Media" checked><span>Media</span></label>
+        <label><input type="radio" name="urg" value="Alta"><span>Alta</span></label>
+        <label><input type="radio" name="urg" value="Crítica"><span>Crítica</span></label>
+      </div>
+
+      <label for="limite">Fecha límite del cliente <small>(opcional)</small></label>
+      <input type="date" id="limite">
+
+      <label>Fotos</label>
+      <label class="subir"><input type="file" id="foto" accept="image/*" multiple> + Agregar foto</label>
+      <div class="fotos" id="fotos"></div>
+
+      <p id="error" class="aviso mal" hidden></p>
+      <div class="acciones"><button type="submit" class="btn naranja block">Crear orden</button></div>
+    </form>
+
+    <section id="listo" class="card" hidden>
+      <div class="ok-msg"><b id="num-nuevo"></b> creada. Estado: <b>Recibida</b>.</div>
+      <div class="acciones">
+        <a class="btn naranja" id="ir-orden" href="#">Diagnosticar y cotizar</a>
+        <a class="btn claro" href="index.html">Ver tablero</a>
+        <a class="btn claro" href="nueva-orden.html">Otra orden</a>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+    const { $, esc } = App;
+    App.topbar('nueva');
+    let fotos = [];
+
+    App.hero('Nueva orden de trabajo', App.nextNumero() + ' · Registro en taller');
+    const conocidas = [...new Set(App.ordenes().map(o => o.maquina))];
+    $('#maquinas').innerHTML = conocidas.map(m => `<option value="${esc(m)}">`).join('');
+
+    // Simulación del lector de QR: carga una máquina conocida y enlaza a su historial.
+    function mostrarMaquina() {
+      const id = App.maquinaId($('#maquina').value);
+      const hay = id && App.ordenes().some(o => o.maquina === id);
+      $('#qr-msg').innerHTML = hay
+        ? `Código QR leído · <a href="maquina.html?id=${encodeURIComponent(id)}" target="_blank">ver historial de órdenes de ${esc(id)}</a>`
+        : 'Escanea el QR de la máquina para ver su historial de órdenes.';
+    }
+    $('#qr-sim').addEventListener('click', () => { $('#maquina').value = 'TORNO-CNC-2'; mostrarMaquina(); App.toast('Código QR leído (simulado).'); });
+    $('#maquina').addEventListener('input', mostrarMaquina);
+
+    function pintarFotos() {
+      $('#fotos').innerHTML = fotos.map((f, i) =>
+        `<div class="foto"><img src="${f}" alt="Foto ${i + 1}"><button type="button" data-i="${i}" aria-label="Quitar foto">×</button></div>`).join('');
+    }
+    $('#fotos').addEventListener('click', e => {
+      const b = e.target.closest('button[data-i]');
+      if (b) { fotos.splice(+b.dataset.i, 1); pintarFotos(); }
+    });
+    $('#foto').addEventListener('change', async e => {
+      for (const f of e.target.files) {
+        try { fotos.push(await App.comprimir(f)); } catch (err) { App.toast('No se pudo leer una de las fotos.'); }
+      }
+      e.target.value = '';
+      pintarFotos();
+    });
+
+    $('#form').addEventListener('submit', e => {
+      e.preventDefault();
+      const d = {
+        cliente: $('#cliente').value.trim(), maquina: $('#maquina').value.trim(), falla: $('#falla').value.trim(),
+        urgencia: document.querySelector('input[name=urg]:checked').value, limiteCliente: $('#limite').value, fotos
+      };
+      const err = $('#error');
+      const faltan = [!d.cliente && 'cliente', !d.maquina && 'máquina', !d.falla && 'falla'].filter(Boolean);
+      if (faltan.length) { err.textContent = 'Falta completar: ' + faltan.join(', ') + '.'; err.hidden = false; return; }
+      err.hidden = true;
+      const o = App.crearOrden(d);
+      if (!o) return;
+      $('#form').hidden = true;
+      $('#listo').hidden = false;
+      $('#num-nuevo').textContent = o.numero;
+      $('#ir-orden').href = 'orden.html?orden=' + encodeURIComponent(o.numero);
+      scrollTo(0, 0);
+    });
+  </script>
+</body>
+</html>

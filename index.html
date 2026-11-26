@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1c2029">
+  <title>Tablero · PRINMET Orden Digital</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+  <main>
+    <section class="metricas" id="metricas" aria-label="Medición"></section>
+    <div class="tablero" id="tablero"></div>
+    <p class="pie-tablero"><button id="reiniciar">Reiniciar datos de ejemplo</button></p>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+    const { esc, fecha, badgeUrg } = App;
+    App.topbar('tablero');
+    App.hero('Tablero de órdenes', 'Taller PRINMET · Estado en tiempo real');
+
+    const COL = { 'Recibida': 'recibida', 'Cotizada': 'cotizada', 'En reparación': 'reparacion', 'Lista': 'lista' };
+    const ACCION = {
+      'Cotizada': 'Pasar a En reparación',
+      'En reparación': 'Marcar como Lista'
+    };
+
+    function tarjeta(o) {
+      const sig = App.siguiente(o);
+      let principal = '';
+      if (o.estado === 'Recibida') principal = `<a class="btn naranja sm" href="orden.html?orden=${encodeURIComponent(o.numero)}">Diagnosticar y cotizar</a>`;
+      else if (ACCION[o.estado]) principal = `<button class="btn naranja sm" data-avanzar="${esc(o.numero)}">${ACCION[o.estado]} →</button>`;
+      return `
+      <article class="orden" style="--c:var(--s-${COL[o.estado]})">
+        <div class="cab">
+          <a class="num" href="orden.html?orden=${encodeURIComponent(o.numero)}">${esc(o.numero)}</a>
+          ${badgeUrg(o.urgencia)}
+        </div>
+        <div class="cli">${esc(o.cliente)}</div>
+        <div class="maq"><a href="maquina.html?id=${encodeURIComponent(o.maquina)}">${esc(o.maquina)}</a></div>
+        <div class="falla">${esc(o.falla)}</div>
+        <div class="meta">Entrega estimada: ${o.entrega ? fecha(o.entrega) : 'sin cotizar'}</div>
+        <div class="botones">
+          ${principal}
+          <a class="btn wa sm" target="_blank" rel="noopener" href="${App.waLink(o)}">WhatsApp</a>
+          <a class="btn claro sm" href="${App.urlCliente(o)}">Vista cliente</a>
+        </div>
+      </article>`;
+    }
+
+    function render() {
+      const lista = App.ordenes();
+      const m = App.metricas(lista);
+      document.getElementById('metricas').innerHTML = `
+        <div class="metrica"><b>${m.total}</b><span>Órdenes</span><em>${m.cotizadas} cotizadas</em></div>
+        <div class="metrica"><b>${m.rapidas} de ${m.cotizadas}</b><span>Cotizadas en &lt; 24 h</span><em>${m.pctRapidas}%</em></div>
+        <div class="metrica"><b>${m.pctCompletas}%</b><span>Registro completo</span><em>${m.completas} de ${m.total} con diagnóstico y fecha</em></div>`;
+
+      document.getElementById('tablero').innerHTML = App.ESTADOS.map(e => {
+        const items = lista.filter(o => o.estado === e).sort((a, b) => Date.parse(b.creada) - Date.parse(a.creada));
+        return `<section class="columna ${COL[e]}" aria-label="${e}">
+          <header><span>${e}</span><span class="n">${items.length}</span></header>
+          ${items.map(tarjeta).join('') || '<div class="vacio">Sin órdenes</div>'}
+        </section>`;
+      }).join('');
+    }
+
+    document.getElementById('tablero').addEventListener('click', ev => {
+      const b = ev.target.closest('[data-avanzar]');
+      if (!b) return;
+      const o = App.get(b.dataset.avanzar);
+      const sig = o && App.siguiente(o);
+      if (!sig) return;
+      App.setEstado(o, sig);
+      render();
+      App.toast(`${o.numero} pasó a ${sig}` + (sig === 'Lista' ? '. Avisa al cliente por WhatsApp.' : '.'));
+    });
+    document.getElementById('reiniciar').addEventListener('click', App.reiniciar);
+    render();
+  </script>
+</body>
+</html>

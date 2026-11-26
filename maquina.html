@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1c2029">
+  <title>Ficha de máquina · PRINMET Orden Digital</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <header class="topbar" id="topbar"></header>
+  <main class="estrecho" id="raiz"></main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="app.js"></script>
+  <script>
+    const { $, esc } = App;
+    App.topbar('');
+    App.hero('Ficha de la máquina', App.qs('id') ? App.maquinaId(App.qs('id')) : 'Historial de órdenes por máquina');
+    const id = App.maquinaId(App.qs('id'));
+    const todas = App.ordenes();
+    const raiz = $('#raiz');
+
+    if (!id) {
+      const maqs = [...new Set(todas.map(o => o.maquina))];
+      raiz.innerHTML = `<section class="card"><h1 style="margin-bottom:10px">Máquinas</h1><ul class="lista-simple">${maqs.map(m =>
+        `<li><a href="maquina.html?id=${encodeURIComponent(m)}"><b>${esc(m)}</b></a><small>${todas.filter(o => o.maquina === m).length} órdenes</small></li>`).join('')}</ul></section>`;
+    } else {
+      const lista = todas.filter(o => App.maquinaId(o.maquina) === id).sort((a, b) => Date.parse(b.creada) - Date.parse(a.creada));
+      const url = new URL('maquina.html', location.href);
+      url.search = ''; url.hash = '';
+      url.searchParams.set('id', id);
+      raiz.innerHTML = `
+        <section class="card">
+          <h1>${esc(id)}</h1>
+          <p class="ayuda" style="margin:6px 0 0">${lista.length} ${lista.length === 1 ? 'orden registrada' : 'órdenes registradas'}</p>
+        </section>
+        <section class="card">
+          <h2>Historial de órdenes</h2>
+          ${lista.length ? `<ul class="lista-simple">${lista.map(o => `
+            <li>
+              <div><a href="orden.html?orden=${encodeURIComponent(o.numero)}"><b>${esc(o.numero)}</b></a> · ${esc(o.cliente)}<br>
+                <small>${App.fecha(o.creada)} · ${esc(o.falla)}</small></div>
+              ${App.badgeEstado(o.estado)}
+            </li>`).join('')}</ul>` : '<p class="ayuda">Esta máquina aún no tiene órdenes.</p>'}
+        </section>
+        <section class="card">
+          <h2>Código QR de la ficha</h2>
+          <div class="qr"><div id="qr"></div><code>${esc(url.toString())}</code></div>
+          <p class="ayuda" style="text-align:center">Pégalo en la máquina: al escanearlo se abre esta ficha.</p>
+        </section>`;
+      if (typeof QRCode !== 'undefined') {
+        new QRCode($('#qr'), { text: url.toString(), width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
+      } else {
+        $('#qr').innerHTML = '<p class="ayuda">No se pudo cargar la librería del QR (¿sin internet?).</p>';
+      }
+    }
+  </script>
+</body>
+</html>
